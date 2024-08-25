@@ -38,12 +38,76 @@ def fetch_popular_movies():
 def fetch_top_rated_movies():
     return fetch_movies('/movie/top_rated')
 
-"""
+def fetch_latest_movies():
+    headers = {
+        "accept": "application/json",
+        "Authorization": f"Bearer {authorization_key}"
+    }
+    url = f"{api_url}/movie/latest"
+    response = requests.get(url, headers=headers)
+    if response.status_code == 200:
+        latest_movie = response.json()
+        return [latest_movie]
+    else:
+        print(f"Failed to fetch the latest movie: {response.status_code}")
+        return []
+
+def fetched_movies():
+    fetched_movies = []
+
+    popular_movies = fetch_popular_movies()
+    fetched_movies.extend(popular_movies)
+
+    top_rated_movies = fetch_top_rated_movies()
+    fetched_movies.extend(top_rated_movies)
+
+    latest_movies = fetch_latest_movies()
+    fetched_movies.extend(latest_movies)
+
+    return fetched_movies
+
+def validations_aka_transformation(movies):
+    final_movie_list = []
+    seen_movie_ids = set()
+
+    for movie in movies:
+        # Remove duplications
+        movie_id = movie.get('id')
+        if not movie_id or movie_id in seen_movie_ids:
+            continue
+        seen_movie_ids.add(movie_id)
+
+        # Remove unwanted fields
+        for field in ['backdrop_path', 'poster_path', 'original_title']:
+            movie.pop(field, None)
+
+        # Remove Null values
+        if any(value is None or value == '' for value in movie.values()):
+            continue
+
+        # Convert release_date to datetime && extract year
+        if 'release_date' in movie:
+            try:
+                release_date = datetime.strptime(movie['release_date'], '%Y-%m-%d')
+                movie['release_date'] = release_date
+                movie['year'] = release_date.year
+            except:
+                pass
+        
+        final_movie_list.append(movie)
+
+    return final_movie_list
+
+all_movies = fetched_movies()
+print(f"All movies are fetched! {len(all_movies)}")
+
+final_movies_list = validations_aka_transformation(all_movies)
+print(f"Transformation don on your all_movies list: {len(final_movies_list)}")
+
 def save_movies_json(movies, filename):
     with open(filename, 'w', encoding='utf-8') as file:
         json.dump(movies, file, ensure_ascii=False, indent=4)
     print(f"Movies saved to {filename}")
-"""
 
 def save_movies_mongo(movies, collection_name):
     client = MongoClient('mongodb://mongodb:27017/')
@@ -56,17 +120,5 @@ def save_movies_mongo(movies, collection_name):
     else:
         print(f"No movies to save to MongoDB collection '{collection_name}'")
 
-
-
-
-popular_movies = fetch_popular_movies()
-top_rated_movies = fetch_top_rated_movies()
-
-#save_movies_json(popular_movies, 'popular_movies.json')
-#save_movies_json(top_rated_movies, 'top_rated_movies.json')
-
-save_movies_mongo(popular_movies, 'popular_movies')
-save_movies_mongo(top_rated_movies, 'top_rated_movies')
-
-print(f"Total popular movies fetched: {len(popular_movies)}")
-print(f"Total top rated movies fetched: {len(top_rated_movies)}")
+save_movies_json(final_movies_list, 'final_movies_list.json')
+save_movies_mongo(final_movies_list, 'final_movies_list')
